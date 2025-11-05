@@ -1,0 +1,151 @@
+# Default values for httpbin-app
+
+# Application settings
+app:
+  name: httpbin
+  image:
+    repository: kennethreitz/httpbin
+    tag: latest
+    pullPolicy: IfNotPresent
+  
+  replicas: 2
+  
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "100m"
+    limits:
+      memory: "128Mi"
+      cpu: "200m"
+  
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  
+  # Probes
+  livenessProbe:
+    httpGet:
+      path: /status/200
+      port: 80
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /status/200
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+# External Ingress (Internet-facing ALB)
+ingress:
+  external:
+    enabled: true
+    className: alb
+    annotations:
+      # ALB configuration
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+      # Health check
+      alb.ingress.kubernetes.io/healthcheck-path: /status/200
+      alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+      alb.ingress.kubernetes.io/success-codes: "200"
+      # Load balancer attributes
+      alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+      # Tags
+      alb.ingress.kubernetes.io/tags: Environment=dev,Access=public,ManagedBy=helm
+    
+    # Public endpoints
+    paths:
+      - path: /get
+        pathType: Exact
+      - path: /headers
+        pathType: Exact
+      - path: /ip
+        pathType: Exact
+      - path: /user-agent
+        pathType: Exact
+      - path: /status
+        pathType: Prefix
+
+  # Internal Ingress (Private ALB)
+  internal:
+    enabled: true
+    className: alb
+    annotations:
+      # ALB configuration for internal access
+      alb.ingress.kubernetes.io/scheme: internal
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+      # Health check
+      alb.ingress.kubernetes.io/healthcheck-path: /status/200
+      alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+      alb.ingress.kubernetes.io/success-codes: "200"
+      # Load balancer attributes
+      alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+      # Tags
+      alb.ingress.kubernetes.io/tags: Environment=dev,Access=internal,ManagedBy=helm
+    
+    # Private endpoints
+    paths:
+      - path: /post
+        pathType: Exact
+      - path: /put
+        pathType: Exact
+      - path: /delete
+        pathType: Exact
+      - path: /patch
+        pathType: Exact
+      - path: /anything
+        pathType: Prefix
+
+# Namespace
+namespace:
+  create: true
+  name: httpbin
+
+# Pod labels
+podLabels:
+  app: httpbin
+  version: v1
+
+# Service labels
+serviceLabels:
+  app: httpbin
+  service: httpbin
+
+# Additional annotations
+podAnnotations: {}
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - httpbin
+          topologyKey: kubernetes.io/hostname

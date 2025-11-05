@@ -1,0 +1,29 @@
+{{- if .Values.ingress.external.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.app.name }}-external
+  namespace: {{ .Values.namespace.name }}
+  annotations:
+    {{- with .Values.ingress.external.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    app: {{ .Values.app.name }}
+    access: public
+    ingress-type: external
+spec:
+  ingressClassName: {{ .Values.ingress.external.className }}
+  rules:
+  - http:
+      paths:
+      {{- range .Values.ingress.external.paths }}
+      - path: {{ .path }}
+        pathType: {{ .pathType }}
+        backend:
+          service:
+            name: {{ $.Values.app.name }}
+            port:
+              number: {{ $.Values.service.port }}
+      {{- end }}
+{{- end }}
